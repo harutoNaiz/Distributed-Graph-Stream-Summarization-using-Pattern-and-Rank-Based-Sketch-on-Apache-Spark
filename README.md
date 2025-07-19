@@ -19,10 +19,6 @@ Our system compresses a dynamic graph stream <code>S = {e₁, e₂, ..., eₜ}</
   <li>We introduce a self-designed <b>pattern-and-rank-based hash sketch</b> that compresses the graph into a compact memory structure while preserving query accuracy.</li>
 </ul>
 
-<p style="text-align: center;">
-  <img src="assets/architecture.png" alt="System Architecture Diagram" style="max-width: 100%; height: auto; border: 1px solid #ccc; padding: 4px;">
-</p>
-
 <h3>1. Pattern Construction</h3>
 <p>
 Each node is hashed multiple times using diverse hash functions to generate a pattern set:
