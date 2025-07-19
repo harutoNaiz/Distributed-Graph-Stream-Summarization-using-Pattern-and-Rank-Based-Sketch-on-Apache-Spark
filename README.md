@@ -119,17 +119,19 @@ Given nodes <code>A</code> and <code>C</code>, we infer a reachable path exists 
 <h2>Getting Started</h2>
 <ol>
   <li>Clone the repository:<br>
-    <pre><code>git clone https://github.com/your-username/distributed-prsketch.git</code></pre>
+    <pre><code>git clone https://github.com/harutoNaiz/Distributed-Graph-Stream-Summarization-using-Pattern-and-Rank-Based-Sketch-on-Apache-Spark.git</code></pre>
   </li>
-  <li>Install Python dependencies and configure the Apache Spark environment</li>
-  <li>Launch the server to begin processing incoming graph stream data</li>
-  <li>Use the client script to issue queries such as reachability and edge weight estimation</li>
+  <li>Install Spark</li>
+  <li>Navigate to the server's dir and run : </li>
+  <pre><code>python server.py</code></pre>
+  <li>Use the client script to issue queries such as reachability and edge weight estimation my make changes in the config and run : </li>
+  <pre><code>python client.py</code></pre>
 </ol>
 
 <hr>
 
 <h2>Example Query</h2>
 <pre><code>
-Client sends: A -> B
+Client sends: Edge query A -> B
 Server responds: Reachable: True | Edge Weight Estimate: 12.0
 </code></pre>
