@@ -2,7 +2,7 @@
 
 <p>
 A scalable, memory-efficient system for <b>real-time summarization and querying of massive graph streams</b>. 
-This project extends the <a href="https://dl.acm.org/doi/abs/10.1145/3318464.3389692" target="_blank">PR-Sketch algorithm</a> 
+This project extends the PR-Sketch algorithm
 to a distributed environment using <b>Apache Spark</b>, enabling low-latency analytics over high-throughput streaming graph data.
 </p>
 
