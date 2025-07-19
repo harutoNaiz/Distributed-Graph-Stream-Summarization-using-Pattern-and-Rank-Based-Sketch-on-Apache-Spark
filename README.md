@@ -20,8 +20,9 @@ Our system compresses a dynamic graph stream <code>S = {e₁, e₂, ..., eₜ}</
 </ul>
 
 <p style="text-align: center;">
-  <img src="assets/_architecture.png" alt="System Architecture Diagram" style="max-width: 100%; height: auto; border: 1px solid #ccc; padding: 4px;">
+  <img src="assets/_architecture.png" alt="System Architecture Diagram" style="width: 40%; height: auto; border: 1px solid #ccc; padding: 4px;">
 </p>
+
 
 <h3>1. Pattern Construction</h3>
 <p>
