@@ -8,11 +8,75 @@ to distributed graph stream processing using <b>Apache Spark</b>, enabling low-l
 
 <hr>
 
-<h2>Overview</h2>
+<h2>Mathematical Foundations & Overview</h2>
+
+<p>
+Our system compresses a dynamic graph stream <code>S = {e₁, e₂, ..., eₜ}</code>, where each edge <code>e = (s, d, t, w)</code> represents a connection from node <code>s</code> to node <code>d</code> at time <code>t</code> with weight <code>w &gt; 0</code>.
+</p>
+
 <ul>
-  <li>Conventional graph systems are insufficient for processing high-frequency, real-time updates over large-scale graphs.</li>
-  <li>This system proposes a <b>custom pattern- and rank-based hashing mechanism</b> for <b>scalable, fault-tolerant execution</b>.</li>
-  <li>Applicable to domains such as <i>social networks, real-time recommendation systems, network traffic analysis, and transactional graph processing</i>.</li>
+  <li>Unlike static methods, this system supports <b>real-time updates and queries</b> on continuously evolving graphs.</li>
+  <li>We introduce a self-designed <b>pattern-and-rank-based hash sketch</b> that compresses the graph into a compact memory structure while preserving query accuracy.</li>
+</ul>
+
+<h3>1. Pattern Construction</h3>
+<p>
+Each node is hashed multiple times using diverse hash functions to generate a pattern set:
+</p>
+<pre><code>Pₛ⁽ʲ⁾ = H₁(s) + H₂(s, j) mod W</code></pre>
+<pre><code>P_d⁽ʲ⁾ = H₁(d) + H₂(d, j) mod W</code></pre>
+<p>
+The Cartesian product of <code>Pₛ</code> and <code>P_d</code> provides multiple candidate cells for sketch updates, improving distribution and reducing collisions.
+</p>
+
+<h3>2. Rank Construction</h3>
+<p>
+Each node is associated with a random permutation of ranks:
+</p>
+<pre><code>Rₛ = permute(1, 2, ..., L)</code></pre>
+<pre><code>R_d = permute(1, 2, ..., L)</code></pre>
+<p>
+The edge's rank vector is then defined as:
+</p>
+<pre><code>Rankₑ⁽ⁱ,ʲ⁾ = Rₛ⁽ⁱ⁾ + R_d⁽ʲ⁾</code></pre>
+
+<h3>3. Sketch Insertion Logic</h3>
+<p>
+We maintain a 3D sketch array <code>Sketch[i][j][z]</code> where:
+</p>
+<ul>
+  <li><code>i, j</code> are pattern coordinates from the Cartesian product of <code>Pₛ</code> and <code>P_d</code></li>
+  <li><code>z</code> is the hash table layer (for redundancy)</li>
+</ul>
+
+<p>For each candidate cell:</p>
+<ul>
+  <li>If the incoming rank is higher than the stored one → overwrite (eviction)</li>
+  <li>If the rank matches → increment the frequency counter</li>
+  <li>If the incoming rank is lower → do nothing</li>
+</ul>
+
+<h3>4. Edge Weight Query</h3>
+<p>
+To estimate the frequency of an edge <code>(s, d)</code>:
+</p>
+<ol>
+  <li>Compute all pattern and rank pairs</li>
+  <li>Scan corresponding cells in each layer</li>
+  <li>Return the smallest valid count value</li>
+</ol>
+
+<h3>5. Reachability Query</h3>
+<p>
+Given nodes <code>A</code> and <code>C</code>, we infer a reachable path exists if there is a sequence like <code>A → B</code> and <code>B → C</code> present in the sketch. This allows multi-hop connectivity detection with no false negatives: if the sketch says "not reachable", then it's truly not reachable.
+</p>
+
+<h3>Applications</h3>
+<ul>
+  <li>Social networks: friend-of-a-friend detection, trending links</li>
+  <li>Fraud analytics: detection of transaction chains</li>
+  <li>Network traffic: flow aggregation and hotspot identification</li>
+  <li>Recommendation systems: link estimation in real-time</li>
 </ul>
 
 <hr>
@@ -33,64 +97,6 @@ to distributed graph stream processing using <b>Apache Spark</b>, enabling low-l
   <li><b>Sketching Module:</b> Maintains a compressed in-memory summary of the graph using enhanced pattern and rank-based logic</li>
   <li><b>Distributed Spark Backend:</b> Processes edge updates in batches across cluster nodes using Spark DataFrame APIs and custom aggregators</li>
   <li><b>Client-Server Interface:</b> Handles external query requests, serializes responses, and supports concurrent sessions</li>
-</ol>
-
-<hr>
-
-<h2>Mathematical Foundations</h2>
-<p>Our approach summarizes a continuous graph stream <code>S = {e₁, e₂, ..., eₜ}</code>, where each edge <code>e = (s, d, t, w)</code> contains source <code>s</code>, destination <code>d</code>, timestamp <code>t</code>, and weight <code>w</code>. To encode the graph compactly, we use pattern-based hashing and rank-aware updates, defined as follows:</p>
-
-<h3>1. Pattern Construction</h3>
-<p>
-Each node is hashed multiple times to form a set of patterns:
-</p>
-<pre><code>Pₛ⁽ʲ⁾ = H₁(s) + H₂(s, j) mod W</code></pre>
-<pre><code>P_d⁽ʲ⁾ = H₁(d) + H₂(d, j) mod W</code></pre>
-<p>
-Here, <code>j</code> is the pattern index and <code>W</code> is the hash width. The Cartesian product of <code>Pₛ</code> and <code>P_d</code> gives a diverse set of candidate cells for storing the edge.
-</p>
-
-<h3>2. Rank Construction</h3>
-<p>
-Each node is assigned a rank vector by permuting integers from 1 to L:
-</p>
-<pre><code>Rₛ = permute(1, 2, ..., L)</code></pre>
-<pre><code>R_d = permute(1, 2, ..., L)</code></pre>
-<p>
-The rank of an edge is then computed as the elementwise sum of <code>Rₛ</code> and <code>R_d</code>:
-</p>
-<pre><code>Rankₑ⁽ⁱ,ʲ⁾ = Rₛ⁽ⁱ⁾ + R_d⁽ʲ⁾</code></pre>
-
-<h3>3. Sketch Insertion</h3>
-<p>
-An edge is inserted into a 3D memory array <code>Sketch[i][j][z]</code> where:
-</p>
-<ul>
-  <li><code>i, j</code> are selected from pattern combinations</li>
-  <li><code>z</code> is the hash layer (for redundancy)</li>
-</ul>
-<p>
-Insertion logic compares existing rank in the cell:
-</p>
-<ul>
-  <li>If incoming rank is higher → overwrite (evict and insert)</li>
-  <li>If ranks match → increment weight</li>
-  <li>If incoming rank is lower → ignore</li>
-</ul>
-
-<h3>4. Reachability Query</h3>
-<p>
-To check if node <code>A</code> can reach node <code>C</code>, we look for paths like <code>A → B</code> and <code>B → C</code> in the sketch. This allows us to infer <code>A → C</code> without storing full paths. Since the structure is compact, some false positives are allowed, but never false negatives (if no path is reported, there truly isn’t one).
-</p>
-
-<h3>5. Edge Weight Query</h3>
-<p>
-To estimate the weight of an edge <code>(s, d)</code>, we:
-</p>
-<ol>
-  <li>Recompute patterns and ranks</li>
-  <li>Scan all matching cells with correct rank</li>
-  <li>Return the minimum recorded weight among them</li>
 </ol>
 
 <hr>
