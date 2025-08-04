@@ -157,5 +157,4 @@ Server responds:
   Total Weight: 665946.00
   Occupied Cells: 470953/5000000
   Occupancy Rate: 9.42%
-Waiting for next update...
 </code></pre>
