@@ -7,15 +7,15 @@ import shutil
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import lit, split, trim
 from pyspark.sql.types import StructType, StructField, StringType
-from pyspark_pr_sketch import PRSketchSpark
+from adaptive_hash_sketch import AdaptiveHashSketch
 
-class SparkPRSketchServer:
+class SparkAdaptiveSketchServer:
     def __init__(self, host='localhost', port=9992):
         self.host = host
         self.port = port
         self.clients = []
         self.spark = SparkSession.builder \
-            .appName("PRSketchServer") \
+            .appName("AdaptiveSketchServer") \
             .config("spark.sql.streaming.forceDeleteTempCheckpointLocation", "true") \
             .getOrCreate()
         self.sketch = None
@@ -44,47 +44,44 @@ class SparkPRSketchServer:
             print(f"  → Batch Size: {batch_size}")
             print(f"  → Queries: {queries}")
 
-            # Initialize PRSketch
-            self.sketch = PRSketchSpark(
+            self.sketch = AdaptiveHashSketch(
                 width=width,
                 depth=depth,
                 pattern_length=pattern_length,
                 conflict_limit=conflict_limit
             )
 
-            # Create a temp directory for streaming
-            temp_dir = "/tmp/pr_sketch_stream"
+            temp_dir = "/tmp/adaptive_sketch_stream"
             if os.path.exists(temp_dir):
                 shutil.rmtree(temp_dir)
             os.makedirs(temp_dir)
 
-            # Copy input file to temp location
             temp_file = os.path.join(temp_dir, "data.txt")
             shutil.copy2(file_path, temp_file)
 
-            # Define schema for streaming
             schema = StructType([
                 StructField("value", StringType(), True)
             ])
 
-            # Process each batch
             def process_batch(batch_df, batch_id):
                 if batch_df.count() == 0:
                     return
                 
-                # Clean and process the batch
                 cleaned_df = batch_df.filter(~batch_df.value.startswith("#"))
                 edges_df = cleaned_df.select(
                     split(trim(cleaned_df.value), "\t").getItem(0).alias("source"),
                     split(trim(cleaned_df.value), "\t").getItem(1).alias("dest")
                 ).withColumn("weight", lit(1.0))
-                
-                # Update sketch with this batch (collect to driver first)
+
                 edges_collected = edges_df.collect()
                 self.sketch.update(edges_collected)
-                print(f"Processed batch {batch_id} with {len(edges_collected)} edges")
 
-            # Start streaming query
+                stats = self.sketch.get_stats()
+                print(f"Processed batch {batch_id} with {len(edges_collected)} edges")
+                print(f"  → Hash Functions: {stats['hash_functions']}")
+                print(f"  → Total Edges: {stats['total_edges']}")
+                print(f"  → Occupancy Rate: {stats['occupancy_rate']:.2%}")
+
             stream_df = self.spark.readStream \
                 .schema(schema) \
                 .option("maxFilesPerTrigger", 1) \
@@ -94,7 +91,6 @@ class SparkPRSketchServer:
                 .foreachBatch(process_batch) \
                 .start()
 
-            # Query processing thread
             def run_query():
                 self.running = True
                 while self.running:
@@ -108,6 +104,13 @@ class SparkPRSketchServer:
                                 'edge_weight': edge_weight,
                                 'reachability': reachability
                             })
+
+                        stats = self.sketch.get_stats()
+                        results.append({
+                            'type': 'stats',
+                            'stats': stats
+                        })
+
                         conn.sendall(pickle.dumps(results))
                         time.sleep(2)
                     except Exception as e:
@@ -133,7 +136,7 @@ class SparkPRSketchServer:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.bind((self.host, self.port))
             s.listen()
-            print(f"[SERVER] Listening on {self.host}:{self.port}")
+            print(f"[SERVER] Adaptive Hash Sketch Server listening on {self.host}:{self.port}")
 
             while True:
                 conn, addr = s.accept()
@@ -150,8 +153,9 @@ class SparkPRSketchServer:
         self.spark.stop()
 
 if __name__ == "__main__":
-    server = SparkPRSketchServer()
+    server = SparkAdaptiveSketchServer()
     try:
         server.start()
     except KeyboardInterrupt:
+        print("\n[SERVER] Shutting down Adaptive Hash Sketch Server...")
         server.stop()
